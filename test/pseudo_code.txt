@@ -1,0 +1,244 @@
+1. **incident_create_copy.py**
+   - Define a class `create_incident` to handle incident creation and processing.
+   - Constructor:
+     - Initialize with `account_num` and `incident_id`.
+     - Validate inputs and initialize a MongoDB-like document structure (`mongo_data`).
+   - Methods:
+     - `initialize_mongo_doc`: Create a template for incident data with default values.
+     - `read_customer_details`: Fetch customer details from MySQL and populate `mongo_data`.
+     - `get_payment_data`: Retrieve the latest payment data for the account and update `mongo_data`.
+     - `format_json_object`: Convert `mongo_data` into a JSON string with proper formatting and type consistency.
+     - `json_serializer`: Handle serialization of non-JSON types (e.g., datetime, Decimal).
+     - `send_to_api`: Send the formatted JSON to an API endpoint via HTTP POST.
+     - `process_incident`: Orchestrate the entire process:
+       - Fetch customer details.
+       - Optionally fetch payment data.
+       - Format data as JSON.
+       - Send data to the API.
+
+2. **connectSQL.py**
+   - Define a function `get_mysql_connection` to establish a MySQL connection:
+     - Read database configuration from `DB_Config.ini`.
+     - Validate the configuration and connect to the database.
+     - Log success or failure.
+
+3. **connectAPI.py**
+   - Define a function `read_api_config` to retrieve the API URL:
+     - Read the API configuration file.
+     - Validate the URL format.
+     - Return the validated URL or raise an error if invalid.
+
+
+i want to add some function in to this data collecting part from the sql 
+
+here is the scenario 
+
+in database the row are adding continously day to day 
+
+before the data is collected from the sql i want to get that details in time gap, the gap is calculates has [Last_execution_dtm to (system_current_dtm minus 1 minute)] sql data collected by this processing 
+when everytime run the function Last_execution_dtm was need to set last sqldatabase[LOAD_DATE] in rows that means last load date time , 
+
+
+
+Process_Operation 
+{
+  "Process_Operation_Sequence": 1,
+  "created_dtm": "2025-04-01T23:59:00.000Z",
+  "Operation_name": "Incident extraction from data lake",
+  "Last_execution_dtm": "2025-04-01T23:58:00.000Z",
+  "end_dtm": "2025-04-02T00:00:00.000Z"
+}
+
+[Process_Operation 
+Process_Operation_Sequence	  1	
+created_dtm	    :   the mongodb collection this data created dtm                                                 
+Operation_name  : Incident extraction from data lake	                        
+Last_execution_dtm	  : last process execution dtm mean sqldatabase[LOAD_DATE] when process done                                                         
+end_dtm : end_dtm mean process end time 
+]
+
+
+ 
+and get the data from the sql database and update this data in the mongo collection(Process_Operation in mongodb collection)
+
+and create a get monogo collection function to get the data from the mongo collection in utils folder by geting a mongo url using ini file 
+
+
+
+
+
+scenario [Scenario: Time-Gapped Incident Processing System
+Let's walk through a real-world scenario to understand how the system processes data incrementally using MongoDB's Process_Operation tracking.
+
+Step 1: System Initialization (First Run)
+Time: 2025-04-01T00:00:00Z
+Action: The system runs for the first time.
+
+Check Process_Operation Collection
+
+No prior record exists.
+
+Defaults:
+
+Last_execution_dtm = 1900-01-01T00:00:00Z (oldest possible date)
+
+Process_Operation_Sequence = 0
+
+Define Time Window
+
+Start: 1900-01-01T00:00:00Z (default)
+
+End: 2025-04-01T00:00:00Z - 1 minute = 2025-03-31T23:59:00Z
+
+Fetch SQL Data
+
+Queries debt_cust_detail and debt_payment for records where:
+
+LOAD_DATE > 1900-01-01
+
+LOAD_DATE <= 2025-03-31T23:59:00Z
+
+Finds records up to 2025-03-31T23:58:00Z.
+
+Update MongoDB Tracking
+
+Newest LOAD_DATE found: 2025-03-31T23:58:00Z
+
+Creates a new document in Process_Operation:
+
+json
+Copy
+{
+  "Process_Operation_Sequence": 1,
+  "created_dtm": "2025-04-01T00:01:00Z",
+  "Operation_name": "Incident extraction from data lake",
+  "Last_execution_dtm": "2025-03-31T23:58:00Z",
+  "end_dtm": "2025-04-01T00:01:00Z"
+}
+Key Points:
+
+Process_Operation_Sequence starts at 1.
+
+Last_execution_dtm = newest LOAD_DATE processed.
+
+end_dtm = when processing finished.
+
+Step 2: Second Run (Next Day)
+Time: 2025-04-02T00:00:00Z
+Action: System runs again to fetch new data.
+
+Check Process_Operation Collection
+
+Finds the existing record:
+
+json
+Copy
+{
+  "Process_Operation_Sequence": 1,
+  "Last_execution_dtm": "2025-03-31T23:58:00Z",
+  ...
+}
+Define Time Window
+
+Start: 2025-03-31T23:58:00Z (last processed timestamp)
+
+End: 2025-04-02T00:00:00Z - 1 minute = 2025-04-01T23:59:00Z
+
+Fetch SQL Data
+
+Queries for records where:
+
+LOAD_DATE > 2025-03-31T23:58:00Z
+
+LOAD_DATE <= 2025-04-01T23:59:00Z
+
+Finds new records up to 2025-04-01T23:57:00Z.
+
+Update MongoDB Tracking
+
+Newest LOAD_DATE found: 2025-04-01T23:57:00Z
+
+Updates Process_Operation:
+
+json
+Copy
+{
+  "Process_Operation_Sequence": 2, // Incremented!
+  "created_dtm": "2025-04-01T00:01:00Z", // Stays the same
+  "Operation_name": "Incident extraction from data lake",
+  "Last_execution_dtm": "2025-04-01T23:57:00Z", // Updated
+  "end_dtm": "2025-04-02T00:01:00Z" // New end time
+}
+Step 3: Third Run (No New Data)
+Time: 2025-04-02T00:05:00Z
+Action: System runs again, but no new data exists yet.
+
+Check Process_Operation Collection
+
+Last record:
+
+json
+Copy
+{
+  "Process_Operation_Sequence": 2,
+  "Last_execution_dtm": "2025-04-01T23:57:00Z",
+  ...
+}
+Define Time Window
+
+Start: 2025-04-01T23:57:00Z
+
+End: 2025-04-02T00:05:00Z - 1 minute = 2025-04-02T00:04:00Z
+
+Fetch SQL Data
+
+No records found (data hasn’t arrived yet).
+
+No updates to Process_Operation.
+
+Result:
+
+Logs: "No new data in time window"
+
+Process_Operation_Sequence remains 2.
+
+Key Takeaways
+Time-Gapped Processing
+
+Only processes records between:
+
+Copy
+Last_execution_dtm < LOAD_DATE <= (Current Time - 1 minute)
+Ensures no duplicates and no missed records.
+
+Sequence Number (Process_Operation_Sequence)
+
+Increments only when new data is processed.
+
+Tracks how many times data was successfully extracted.
+
+Timestamps
+
+Last_execution_dtm = Newest LOAD_DATE from SQL.
+
+end_dtm = When the processing job finished.
+
+created_dtm = When the document was first created (never changes).
+
+Handling No Data
+
+If no records exist in the time window:
+
+No updates to Process_Operation.
+
+Sequence number does not increment.
+
+Visualization of Document Evolution
+Run	Process_Operation_Sequence	Last_execution_dtm	end_dtm	Notes
+1	1	2025-03-31T23:58:00Z	2025-04-01T00:01:00Z	First run, initial data
+2	2	2025-04-01T23:57:00Z	2025-04-02T00:01:00Z	New data processed
+3	2 (unchanged)	2025-04-01T23:57:00Z	No update	No new data found
+This ensures accurate, incremental processing while maintaining a clear audit trail in MongoDB. 🚀
+
+
+JSON Mapping (After Data Fetching) and send with api is not data in that send a empty json ]
