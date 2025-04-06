@@ -1,5 +1,5 @@
 import pymysql  # Library for interacting with MySQL databases
-from datetime import datetime, date, timedelta  # Modules for working with date and time
+from datetime import datetime, date, timedelta,timezone,time # Modules for working with date and time
 from decimal import Decimal  # Module for handling precise decimal arithmetic
 import json  # Module for parsing and handling JSON data
 import requests  # Library for making HTTP requests
@@ -49,37 +49,13 @@ class create_incident:
         self.current_sequence = 0
 
     def initialize_mongo_doc(self):
-        """
-        Creates and initializes a standardized MongoDB document structure for incident.
-
-        This template document:
-        - Establishes all required fields with default values
-        - Sets proper initial timestamps
-        - Provides empty containers for related data
-        - Ensures consistent field types across all incidents
-
-        Structure Overview:
-        1. Metadata: Versioning, IDs, timestamps
-        2. Core Incident Data: Status, descriptions
-        3. Financial Data: Arrears, payment info
-        4. Relationship Containers: Contacts, products
-        5. System Fields: Audit trails, rejection info
-
-        Returns:
-            dict: A complete document structure with these guaranteed characteristics:
-                - All fields initialized (no undefined fields)
-                - String fields: Empty string defaults ("")
-                - Numeric fields: "0" or 0 defaults
-                - Dates: Current ISO timestamp or "1900-01-01" placeholder
-                - Collections: Empty lists/dicts initialized
-                - All timestamps in ISO8601 format
-        """
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         return {
-            "Doc_Version": "1.0",
+            "Doc_Version": 1,
             "Incident_Id": self.incident_id,
             "Account_Num": self.account_num,
             "Arrears": 0,
+            "arrears_band": "",
             "Created_By": "drs_admin",
             "Created_Dtm": now,
             "Incident_Status": "",
@@ -99,20 +75,24 @@ class create_incident:
             "Product_Details": [],
             "Customer_Details": {},
             "Account_Details": {},
-            "Last_Actions": {
-                "Billed_Seq": "",
-                "Billed_Created": "",
-                "Payment_Seq": "",
-                "Payment_Created": "",
-                "Payment_Money": "0",
-                "Billed_Amount": "0"
-            },
-            "Marketing_Details": {
-                "ACCOUNT_MANAGER": "",
-                "CONSUMER_MARKET": "",
-                "Informed_To": "",
-                "Informed_On": "1900-01-01T00:00:00"
-            },
+            "Last_Actions": [
+                {
+                    "Billed_Seq": "",
+                    "Billed_Created": "",
+                    "Payment_Seq": "",
+                    "Payment_Created": "",
+                    "Payment_Money": "0",
+                    "Billed_Amount": "0"
+                }
+            ],
+            "Marketing_Details": [
+                {
+                    "ACCOUNT_MANAGER": "",
+                    "CONSUMER_MARKET": "",
+                    "Informed_To": "",
+                    "Informed_On": "1900-01-01T00:00:00.100Z"
+                }
+            ],
             "Action": "",
             "Validity_period": "0",
             "Remark": "",
@@ -122,6 +102,11 @@ class create_incident:
             "Arrears_Band": "",
             "Source_Type": ""
         }
+    
+    
+    from datetime import datetime, time
+
+
 
     def read_customer_details(self):
         """
@@ -155,6 +140,20 @@ class create_incident:
             - LAST_PAYMENT_DAT, LAST_PAYMENT_MNY (payment info)
             - PROMOTION_INTEG_ID, PRODUCT_NAME (product info)
         """
+        def format_datetime_z(dt):
+            if not dt:
+                return "1900-01-01T00:00:00.000Z"
+            if isinstance(dt, datetime):
+                return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            if isinstance(dt, date):
+                return datetime.combine(dt, time.min).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            try:
+                # Try parsing string date
+                parsed = datetime.strptime(str(dt), "%Y-%m-%d")
+                return parsed.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            except Exception:
+                return "1900-01-01T00:00:00.000Z"
+
         mysql_conn = None
         cursor = None
         try:
@@ -178,7 +177,7 @@ class create_incident:
                         contact_details_element = {
                             "Contact_Type": "email",
                             "Contact": row["TECNICAL_CONTACT_EMAIL"] if "@" in row["TECNICAL_CONTACT_EMAIL"] else "",
-                            "Create_Dtm": row["LOAD_DATE"].isoformat() if row.get("LOAD_DATE") else "",
+                            "Create_Dtm": format_datetime_z(row.get("LOAD_DATE")),
                             "Create_By": "drs_admin"
                         }
                         self.mongo_data["Contact_Details"].append(contact_details_element)
@@ -187,7 +186,7 @@ class create_incident:
                         contact_details_element = {
                             "Contact_Type": "mobile",
                             "Contact": row["MOBILE_CONTACT"],
-                            "Create_Dtm": row["LOAD_DATE"].isoformat() if row.get("LOAD_DATE") else "",
+                            "Create_Dtm": format_datetime_z(row.get("LOAD_DATE")),
                             "Create_By": "drs_admin"
                         }
                         self.mongo_data["Contact_Details"].append(contact_details_element)
@@ -196,7 +195,7 @@ class create_incident:
                         contact_details_element = {
                             "Contact_Type": "fix",
                             "Contact": row["WORK_CONTACT"],
-                            "Create_Dtm": row["LOAD_DATE"].isoformat() if row.get("LOAD_DATE") else "",
+                            "Create_Dtm": format_datetime_z(row.get("LOAD_DATE")),
                             "Create_By": "drs_admin"
                         }
                         self.mongo_data["Contact_Details"].append(contact_details_element)
@@ -209,36 +208,38 @@ class create_incident:
                         "Full_Address": row.get("ASSET_ADDRESS", ""),
                         "Zip_Code": row.get("ZIP_CODE", ""),
                         "Customer_Type_Name": "",
-                        "Nic": str(row.get("NIC", "")),  # Ensure Nic is always a string
-                        "Customer_Type_Id": str(row.get("CUSTOMER_TYPE_ID", "")),
+                        "Nic": str(row.get("NIC", "")), 
+                        "Customer_Type_Id": int(row.get("CUSTOMER_TYPE_ID", "")),
                         "Customer_Type": row.get("CUSTOMER_TYPE", "")
                     }
 
                     # Account details
                     self.mongo_data["Account_Details"] = {
                         "Account_Status": row.get("ACCOUNT_STATUS_BSS", ""),
-                        "Acc_Effective_Dtm": row["ACCOUNT_EFFECTIVE_DTM_BSS"].isoformat() if row.get("ACCOUNT_EFFECTIVE_DTM_BSS") else "",
-                        "Acc_Activate_Date": "1900-01-01T00:00:00",
-                        "Credit_Class_Id": str(row.get("CREDIT_CLASS_ID", "")),
+                        "Acc_Effective_Dtm": format_datetime_z(row.get("ACCOUNT_EFFECTIVE_DTM_BSS")),
+                        "Acc_Activate_Date": "1900-01-01T00:00:00.000Z",
+                        "Credit_Class_Id": int(row.get("CREDIT_CLASS_ID", "")),
                         "Credit_Class_Name": row.get("CREDIT_CLASS_NAME", ""),
                         "Billing_Centre": row.get("BILLING_CENTER_NAME", ""),
                         "Customer_Segment": row.get("CUSTOMER_SEGMENT_ID", ""),
                         "Mobile_Contact_Tel": "",
                         "Daytime_Contact_Tel": "",
-                        "Email_Address": str(row.get("EMAIL", "")),  # Ensure Email_Address is always a string
-                        "Last_Rated_Dtm": "1900-01-01T00:00:00"
+                        "Email_Address": str(row.get("EMAIL", "")),  
+                        "Last_Rated_Dtm": "1900-01-01T00:00:00.000Z"
                     }
 
                     # Last actions from customer table
                     if row.get("LAST_PAYMENT_DAT"):
-                        self.mongo_data["Last_Actions"] = {
-                            "Billed_Seq": str(row.get("LAST_BILL_SEQ", "")),
-                            "Billed_Created": row["LAST_BILL_DTM"].isoformat() if row.get("LAST_BILL_DTM") else "",
-                            "Payment_Seq": "",
-                            "Payment_Created": row["LAST_PAYMENT_DAT"].isoformat() if row.get("LAST_PAYMENT_DAT") else "",
-                            "Payment_Money": str(float(row["LAST_PAYMENT_MNY"])) if row.get("LAST_PAYMENT_MNY") else "0",
-                            "Billed_Amount": str(float(row["LAST_PAYMENT_MNY"])) if row.get("LAST_PAYMENT_MNY") else "0"
-                        }
+                        self.mongo_data["Last_Actions"] = [
+                            {
+                                "Billed_Seq": int(row.get("LAST_BILL_SEQ", "")),
+                                "Billed_Created": format_datetime_z(row.get("LAST_BILL_DTM")),
+                                "Payment_Seq": 0,
+                                "Payment_Created": format_datetime_z(row.get("LAST_PAYMENT_DAT")),
+                                "Payment_Money": float(row["LAST_PAYMENT_MNY"]) if row.get("LAST_PAYMENT_MNY") else "0",
+                                "Billed_Amount": float(row["LAST_PAYMENT_MNY"]) if row.get("LAST_PAYMENT_MNY") else "0"
+                            }
+                        ]
 
                 # Process product details (avoid duplicates)
                 product_id = row.get("ASSET_ID")
@@ -247,12 +248,12 @@ class create_incident:
                     self.mongo_data["Product_Details"].append({
                         "Product_Label": row.get("PROMOTION_INTEG_ID", ""),
                         "Customer_Ref": row.get("CUSTOMER_REF", ""),
-                        "Product_Seq": str(row.get("BSS_PRODUCT_SEQ", "")),
+                        "Product_Seq": int(row.get("BSS_PRODUCT_SEQ", 0)),
                         "Equipment_Ownership": "",
                         "Product_Id": product_id,
                         "Product_Name": row.get("PRODUCT_NAME", ""),
                         "Product_Status": row.get("ASSET_STATUS", ""),
-                        "Effective_Dtm": row["ACCOUNT_EFFECTIVE_DTM_BSS"].isoformat() if row.get("ACCOUNT_EFFECTIVE_DTM_BSS") else "",
+                        "Effective_Dtm": format_datetime_z(row.get("ACCOUNT_EFFECTIVE_DTM_BSS")),
                         "Service_Address": row.get("ASSET_ADDRESS", ""),
                         "Cat": row.get("CUSTOMER_TYPE_CAT", ""),
                         "Db_Cpe_Status": "",
@@ -322,12 +323,14 @@ class create_incident:
 
             if payment_rows:
                 payment = payment_rows[0]
-                self.mongo_data["Last_Actions"].update({
-                    "Payment_Seq": str(payment.get("ACCOUNT_PAYMENT_SEQ", "")),
-                    "Payment_Created": payment["ACCOUNT_PAYMENT_DAT"].isoformat() if payment.get("ACCOUNT_PAYMENT_DAT") else "",
-                    "Payment_Money": str(float(payment["AP_ACCOUNT_PAYMENT_MNY"])) if payment.get("AP_ACCOUNT_PAYMENT_MNY") else "0",
-                    "Billed_Amount": str(float(payment["AP_ACCOUNT_PAYMENT_MNY"])) if payment.get("AP_ACCOUNT_PAYMENT_MNY") else "0"
-                })
+                self.mongo_data["Last_Actions"] = [
+                    {
+                        "Payment_Seq": str(payment.get("ACCOUNT_PAYMENT_SEQ", "")),
+                        "Payment_Created": payment["ACCOUNT_PAYMENT_DAT"].isoformat(timespec='microseconds') + "Z",
+                        "Payment_Money": float(payment["AP_ACCOUNT_PAYMENT_MNY"]) if payment.get("AP_ACCOUNT_PAYMENT_MNY") else 0,
+                        "Billed_Amount": float(payment["AP_ACCOUNT_PAYMENT_MNY"]) if payment.get("AP_ACCOUNT_PAYMENT_MNY") else 0
+                    }
+                ]
                 logger.info("Successfully retrieved payment data.")
                 return "success"
             return "failure"
@@ -390,7 +393,7 @@ class create_incident:
 
         Returns:
             str or float:
-                - For datetime/date: ISO8601 formatted string (e.g., "2023-01-01T00:00:00")
+                - For datetime/date: ISO8601 formatted string (e.g., "2023-01-01T00:00:00+00:00")
                 - For Decimal: Converted to float (e.g., Decimal("10.5") → 10.5)
                 - For None: Returns empty string ("")
 
@@ -399,16 +402,11 @@ class create_incident:
                 When encountering unsupported types. The error message includes:
                 - The problematic type encountered
                 - Example: "Type <class 'set'> not serializable"
-
-        Notes:
-            1. This serializer is designed to work with json.dumps() as its 'default' handler
-            2. Native JSON types (int, float, str, list, dict, bool) are automatically
-            handled by Python's built-in json module and won't reach this serializer
-            3. The empty string conversion for None helps maintain schema consistency
-            in APIs that expect strings rather than null values
         """
-        if isinstance(obj, (datetime, date)):
-            return obj.isoformat()
+        if isinstance(obj, datetime):
+            return obj.replace(microsecond=0).isoformat()  # Remove microseconds and ensure no extra 'Z'
+        if isinstance(obj, date):
+            return obj.isoformat()  # For date objects, no timezone is included
         if isinstance(obj, Decimal):
             return float(obj)
         if obj is None:
@@ -480,7 +478,7 @@ class create_incident:
                 self.last_execution_time = last_record["Last_execution_dtm"]
                 self.current_sequence = last_record["Process_Operation_Sequence"]
             else:
-                self.last_execution_time = "1900-01-01T00:00:00"
+                self.last_execution_time = "1900-01-01T00:00:00:00Z"
                 self.current_sequence = 0
         except Exception as e:
             logger.error(f"Error retrieving last processing time: {e}")
@@ -494,17 +492,21 @@ class create_incident:
             new_timestamp (str): The newest timestamp processed.
         """
         try:
+            # Ensure the timestamp is in the correct format
+            if isinstance(new_timestamp, str):
+                new_timestamp = datetime.fromisoformat(new_timestamp.replace("Z", "+00:00"))
+
             collection = get_mongo_collection("Process_Operation")
             self.current_sequence += 1
             collection.update_one(
                 {"Operation_name": "Incident extraction from data lake"},
                 {
                     "$set": {
-                        "Last_execution_dtm": new_timestamp,
-                        "end_dtm": datetime.now().isoformat()
+                        "Last_execution_dtm": {"$date": new_timestamp.isoformat(timespec='milliseconds') + "Z"},
+                        "end_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds') + "Z"}
                     },
                     "$setOnInsert": {
-                        "created_dtm": datetime.now().isoformat()
+                        "created_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds') + "Z"}
                     },
                     "$inc": {"Process_Operation_Sequence": 1}
                 },
@@ -523,7 +525,7 @@ class create_incident:
             # Step 1: Get the last processing time
             self.get_last_processing_time()
             window_start = self.last_execution_time
-            window_end = (datetime.now() - timedelta(minutes=1)).isoformat()
+            window_end = (datetime.now() - timedelta(minutes=1)).isoformat(timespec='microseconds')
 
             logger.info(f"Processing time window: {window_start} to {window_end}")
 
@@ -581,16 +583,15 @@ class create_incident:
             if not api_url:
                 raise APIConfigError("Empty API URL in config")
 
-           
             api_response = self.send_to_api(json_payload, api_url)
             if not api_response:
                 logger.error("API call failed.")
-           
+                return False  # Do not update MongoDB if API call fails
 
             # Step 7: Update MongoDB with the newest timestamp
             newest_timestamp = max(
-                customer_data[-1]["LOAD_DATE"].isoformat() if customer_data else "1900-01-01T00:00:00",
-                payment_data[0]["ACCOUNT_PAYMENT_DAT"].isoformat() if payment_data else "1900-01-01T00:00:00"
+                customer_data[-1]["LOAD_DATE"].isoformat() + "Z" if customer_data else "1900-01-01T00:00:00:00Z",             
+                payment_data[0]["ACCOUNT_PAYMENT_DAT"].isoformat() + "Z" if payment_data else "1900-01-01T00:00:00:00Z"
             )
             self.update_processing_timestamp(newest_timestamp)
             logger.info(f"Updated MongoDB with newest timestamp: {newest_timestamp}")
