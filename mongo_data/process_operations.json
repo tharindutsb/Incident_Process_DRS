@@ -1,7 +1,7 @@
 {
   "Operation_name": "Incident extraction from data lake",
   "Last_execution_dtm": {
-    "$date": "2025-02-20T00:00:00.000Z"
+    "$date": "2000-02-20T00:00:00.000Z"
   },
   "Process_Operation_Sequence": 4,
   "created_dtm": {

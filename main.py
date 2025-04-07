@@ -3,7 +3,7 @@ from incident_process.incident_create_copy import create_incident  # Note: Class
 if __name__ == "__main__":
     # Define the account number and incident ID
     account_num = "0000003746"
-    incident_id = 123459817293578
+    incident_id = 922224
 
     # Create and process the incident in one step
     incident = create_incident(account_num, incident_id) 
