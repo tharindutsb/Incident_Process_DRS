@@ -545,10 +545,9 @@ class create_incident:
                 "$set": {
                     "Last_execution_dtm": mongo_date,
                     "end_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')},
-                    "last_updated": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')}
+                    "created_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')}
                 },
                 "$setOnInsert": {
-                    "created_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')},
                     "Operation_name": "Incident extraction from data lake"
                 },
                 "$inc": {"Process_Operation_Sequence": 1}
@@ -566,6 +565,7 @@ class create_incident:
         except Exception as e:
             logger.error(f"Failed to update timestamp: {e}", exc_info=True)
             raise
+
     def process_incident(self):
         """
         Complete incident processing with proper time window handling
@@ -621,6 +621,9 @@ class create_incident:
 
                 # 6. Prepare and send payload
                 json_payload = self.format_json_object()
+                print("Incident Json Payload:")
+                print("====================================")
+                print(json_payload)
                 logger.debug(f"Payload: {json.dumps(json.loads(json_payload), indent=2)}")
                 
                 api_url = read_api_config()
@@ -665,90 +668,3 @@ class create_incident:
         except Exception as e:
             logger.error(f"Processing failed: {e}", exc_info=True)
             return False
-            """
-            Complete incident processing with proper time window handling
-            """
-            try:
-                # 1. Get processing window
-                window_start = self.get_last_processing_time()
-                window_end = datetime.now(timezone.utc) - timedelta(minutes=1)
-                
-                logger.info(f"Processing window: {window_start.isoformat()} to {window_end.isoformat()}")
-                logger.info(f"Account: {self.account_num}")
-
-                # 2. Connect to MySQL
-                mysql_conn = get_mysql_connection()
-                if not mysql_conn:
-                    logger.error("MySQL connection failed")
-                    return False
-
-                cursor = mysql_conn.cursor(pymysql.cursors.DictCursor)
-                
-                try:
-                    # 3. Get customer data within time window (using LOAD_DATE)
-                    cursor.execute(
-                        "SELECT * FROM debt_cust_detail WHERE ACCOUNT_NUM = %s "
-                        "AND LOAD_DATE > %s AND LOAD_DATE <= %s",
-                        (self.account_num, window_start.date(), window_end.date())
-                    )
-                    customer_data = cursor.fetchall()
-                    logger.info(f"Found {len(customer_data)} customer records")
-
-                    # 4. Get payment data within time window
-                    cursor.execute(
-                        "SELECT * FROM debt_payment WHERE AP_ACCOUNT_NUMBER = %s "
-                        "AND (ACCOUNT_PAYMENT_DAT BETWEEN %s AND %s OR LOAD_DATE BETWEEN %s AND %s) "
-                        "ORDER BY ACCOUNT_PAYMENT_DAT DESC LIMIT 1",
-                        (self.account_num, window_start, window_end, window_start, window_end)
-                    )
-                    payment_data = cursor.fetchall()
-                    logger.info(f"Found {len(payment_data)} payment records")
-
-                    if not customer_data and not payment_data:
-                        logger.info("No new data in time window")
-                        # Still update timestamp to prevent reprocessing same window
-                        self.update_processing_timestamp(window_end)
-                        return True
-
-                    # 5. Process data
-                    self.mongo_data = self.initialize_mongo_doc()
-                    if customer_data:
-                        self.read_customer_details()
-                    if payment_data:
-                        self.get_payment_data()
-
-                    # 6. Prepare and send payload
-                    json_payload = self.format_json_object()
-                    logger.debug(f"Payload: {json.dumps(json.loads(json_payload), indent=2)}")
-                    
-                    api_url = read_api_config()
-                    if not api_url:
-                        raise APIConfigError("API URL not configured")
-                        
-                    if not self.send_to_api(json_payload, api_url):
-                        raise Exception("API send failed")
-
-                    # 7. Update processing timestamp using the newest LOAD_DATE
-                    newest_timestamp = None
-                    if customer_data:
-                        newest_timestamp = max(
-                            row["LOAD_DATE"] for row in customer_data
-                            if row.get("LOAD_DATE") is not None
-                        )
-                    if payment_data and payment_data[0].get("LOAD_DATE"):
-                        payment_date = payment_data[0]["LOAD_DATE"]
-                        newest_timestamp = max(newest_timestamp, payment_date) if newest_timestamp else payment_date
-                    
-                    # Fallback to window_end if no dates found
-                    update_time = newest_timestamp if newest_timestamp else window_end
-                    self.update_processing_timestamp(update_time)
-                    
-                    return True
-
-                finally:
-                    cursor.close()
-                    mysql_conn.close()
-                    
-            except Exception as e:
-                logger.error(f"Processing failed: {e}", exc_info=True)
-                return False
