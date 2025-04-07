@@ -608,8 +608,7 @@ class create_incident:
 
                 if not customer_data and not payment_data:
                     logger.info("No new data in time window")
-                    # Still update timestamp to prevent reprocessing same window
-                    self.update_processing_timestamp(window_end)
+                    # Do not update the timestamp if no new data is found
                     return True
 
                 # 5. Process data
@@ -655,10 +654,12 @@ class create_incident:
                             payment_date = datetime.combine(payment_date, datetime.min.time())
                         newest_timestamp = max(newest_timestamp, payment_date) if newest_timestamp else payment_date
                 
-                # Fallback to window_end if no dates found
-                update_time = newest_timestamp if newest_timestamp else window_end
-                self.update_processing_timestamp(update_time)
-                
+                # Only update the timestamp if a valid newest_timestamp is found
+                if newest_timestamp:
+                    self.update_processing_timestamp(newest_timestamp)
+                else:
+                    logger.info("No valid LOAD_DATE found to update the processing timestamp.")
+
                 return True
 
             finally:
