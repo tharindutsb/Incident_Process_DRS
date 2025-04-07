@@ -431,10 +431,17 @@ class create_incident:
     
     def get_last_processing_time(self):
         """
-        Retrieves the last processing timestamp from MongoDB with proper date handling
-        Returns:
-            datetime: The last execution time in UTC timezone
+        Retrieves the last processing timestamp from MongoDB with comprehensive date handling
+        Handles:
+        - MongoDB extended JSON format ({$date: ISO string})
+        - Regular datetime objects
+        - Various ISO string formats
         """
+        # Initialize defaults
+        self.last_execution_time = "1900-01-01T00:00:00Z"
+        self.current_sequence = 0
+        self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
+
         try:
             collection = get_mongo_collection("Process_Operation")
             last_record = collection.find_one(
@@ -442,64 +449,106 @@ class create_incident:
                 sort=[("Process_Operation_Sequence", -1)]
             )
 
-            if last_record:
-                # Handle MongoDB date format ($date object)
-                if isinstance(last_record["Last_execution_dtm"], dict) and "$date" in last_record["Last_execution_dtm"]:
-                    last_execution = datetime.strptime(
-                        last_record["Last_execution_dtm"]["$date"], 
-                        "%Y-%m-%dT%H:%M:%S.%fZ"
-                    ).replace(tzinfo=timezone.utc)
-                else:
-                    last_execution = last_record["Last_execution_dtm"]
-                    if last_execution.tzinfo is None:
-                        last_execution = last_execution.replace(tzinfo=timezone.utc)
+            if not last_record:
+                logger.info("No previous processing record found, using defaults")
+                return self.last_execution_dt
 
-                self.last_execution_dt = last_execution
-                self.current_sequence = last_record["Process_Operation_Sequence"]
-                logger.info(f"Found last processing time: {self.last_execution_dt.isoformat()}")
-            else:
-                # First run - set to hardcoded date
-                self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
+            # Handle sequence number
+            try:
+                self.current_sequence = int(last_record.get("Process_Operation_Sequence", 0))
+            except (ValueError, TypeError):
+                logger.warning("Invalid sequence number, defaulting to 0")
                 self.current_sequence = 0
-                logger.info("No previous record found, using default start time")
+
+            # Handle timestamp with multiple format support
+            timestamp = last_record.get("Last_execution_dtm")
+            if timestamp:
+                try:
+                    # Case 1: MongoDB extended JSON format
+                    if isinstance(timestamp, dict) and "$date" in timestamp:
+                        date_str = timestamp["$date"]
+                        # Remove timezone offset if present
+                        if '+' in date_str:
+                            date_str = date_str.split('+')[0] + 'Z'
+                        # Parse with or without milliseconds
+                        if '.' in date_str:
+                            parsed_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+                        else:
+                            parsed_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
+                    
+                    # Case 2: Already a datetime object
+                    elif isinstance(timestamp, datetime):
+                        parsed_dt = timestamp
+                    
+                    # Case 3: String timestamp (fallback)
+                    elif isinstance(timestamp, str):
+                        # Normalize the string format
+                        clean_str = timestamp.replace("Z", "") if "Z" in timestamp else timestamp
+                        clean_str = clean_str.split('+')[0]  # Remove timezone offset if present
+                        parsed_dt = datetime.fromisoformat(clean_str)
+                    
+                    else:
+                        raise ValueError(f"Unsupported timestamp format: {type(timestamp)}")
+
+                    # Ensure timezone awareness
+                    if parsed_dt.tzinfo is None:
+                        parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+                    
+                    self.last_execution_dt = parsed_dt
+                    self.last_execution_time = parsed_dt.isoformat()
+                    logger.info(f"Loaded processing time: {self.last_execution_time}")
+
+                except Exception as e:
+                    logger.error(f"Failed to parse timestamp {timestamp}: {e}")
+                    # Fall back to defaults on error
+                    self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
+                    self.last_execution_time = "1900-01-01T00:00:00Z"
 
             return self.last_execution_dt
 
         except Exception as e:
             logger.error(f"Error retrieving processing time: {e}", exc_info=True)
-            # Fallback to default on error
+            # Return defaults on any error
             self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
-            self.current_sequence = 0
+            self.last_execution_time = "1900-01-01T00:00:00Z"
             return self.last_execution_dt
 
     def update_processing_timestamp(self, new_timestamp=None):
         """
         Updates the processing timestamp in MongoDB with proper date formatting
         Args:
-            new_timestamp: Optional datetime to use (defaults to now - 1 minute)
+            new_timestamp: Optional datetime/date to use (defaults to now - 1 minute)
         """
         try:
             # Default to current time minus 1 minute if not provided
             if new_timestamp is None:
                 new_timestamp = datetime.now(timezone.utc) - timedelta(minutes=1)
-            elif isinstance(new_timestamp, (date, datetime)):
-                # Convert date to datetime if needed
-                if isinstance(new_timestamp, date):
-                    new_timestamp = datetime.combine(new_timestamp, datetime.min.time())
-                # Ensure timezone awareness
-                if new_timestamp.tzinfo is None:
-                    new_timestamp = new_timestamp.replace(tzinfo=timezone.utc)
+            elif isinstance(new_timestamp, date) and not isinstance(new_timestamp, datetime):
+                new_timestamp = datetime.combine(new_timestamp, time.min, tzinfo=timezone.utc)
+            elif isinstance(new_timestamp, str):
+                # Handle string input
+                if 'Z' in new_timestamp:
+                    new_timestamp = new_timestamp.replace("Z", "+00:00")
+                new_timestamp = datetime.fromisoformat(new_timestamp)
+            
+            # Ensure timezone awareness
+            if new_timestamp.tzinfo is None:
+                new_timestamp = new_timestamp.replace(tzinfo=timezone.utc)
 
+            # Format for MongoDB
+            mongo_date = {"$date": new_timestamp.isoformat(timespec='milliseconds')}
+            
             collection = get_mongo_collection("Process_Operation")
             self.current_sequence += 1
 
             update_data = {
                 "$set": {
-                    "Last_execution_dtm": {"$date": new_timestamp.isoformat()},
-                    "end_dtm": {"$date": datetime.now(timezone.utc).isoformat()},
-                    "created_dtm": {"$date": datetime.now(timezone.utc).isoformat()}
+                    "Last_execution_dtm": mongo_date,
+                    "end_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')},
+                    "last_updated": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')}
                 },
                 "$setOnInsert": {
+                    "created_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')},
                     "Operation_name": "Incident extraction from data lake"
                 },
                 "$inc": {"Process_Operation_Sequence": 1}
@@ -515,9 +564,8 @@ class create_incident:
             return result.modified_count > 0
 
         except Exception as e:
-            logger.error(f"Failed to update processing timestamp: {e}", exc_info=True)
+            logger.error(f"Failed to update timestamp: {e}", exc_info=True)
             raise
-
     def process_incident(self):
         """
         Complete incident processing with proper time window handling
