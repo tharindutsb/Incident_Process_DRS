@@ -79,10 +79,10 @@ class create_incident:
                 {
                     "Billed_Seq": "",
                     "Billed_Created": "",
-                    "Payment_Seq": "",
+                    "Payment_Seq": 0,
                     "Payment_Created": "",
-                    "Payment_Money": "0",
-                    "Billed_Amount": "0"
+                    "Payment_Money": 0,
+                    "Billed_Amount": 0
                 }
             ],
             "Marketing_Details": [
@@ -94,7 +94,7 @@ class create_incident:
                 }
             ],
             "Action": "",
-            "Validity_period": "0",
+            "Validity_period": 0,
             "Remark": "",
             "updatedAt": now,
             "Rejected_By": "",
@@ -475,7 +475,11 @@ class create_incident:
             )
 
             if last_record:
-                self.last_execution_time = last_record["Last_execution_dtm"]
+                last_execution_time = last_record["Last_execution_dtm"]
+                if isinstance(last_execution_time, dict) and "$date" in last_execution_time:
+                    self.last_execution_time = last_execution_time["$date"]  # Extract the date string
+                else:
+                    self.last_execution_time = last_execution_time
                 self.current_sequence = last_record["Process_Operation_Sequence"]
             else:
                 self.last_execution_time = "1900-01-01T00:00:00:00Z"
@@ -543,7 +547,7 @@ class create_incident:
                   AND LOAD_DATE > %s 
                   AND LOAD_DATE <= %s
                 """,
-                (self.account_num, window_start, window_end)
+                (self.account_num, window_start, window_end)  # Ensure parameters are passed as a tuple
             )
             customer_data = cursor.fetchall()
             logger.info(f"Fetched {len(customer_data)} records from debt_cust_detail.")
@@ -558,7 +562,7 @@ class create_incident:
                 ORDER BY ACCOUNT_PAYMENT_DAT DESC
                 LIMIT 1
                 """,
-                (self.account_num, window_start, window_end)
+                (self.account_num, window_start, window_end)  # Ensure parameters are passed as a tuple
             )
             payment_data = cursor.fetchall()
             logger.info(f"Fetched {len(payment_data)} records from debt_payment.")
