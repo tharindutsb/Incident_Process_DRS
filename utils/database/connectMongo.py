@@ -2,8 +2,8 @@ import configparser
 from pymongo import MongoClient
 import os
 from utils.logger.logger import get_logger
-from utils.filePath.filePath import get_filePath
 from utils.custom_exceptions.customize_exceptions import DatabaseConnectionError
+from utils.get_root_paths.get_root_paths import get_config_filePath #import get_project_root drs_config.ini
 
 # Initialize logger
 logger = get_logger("database_logger")
@@ -21,7 +21,7 @@ def get_db_connection():
     :raises Exception: If the configuration file is missing or connection fails.
     """
     try:
-        config_path = get_filePath("databaseConfig")
+        config_path = get_config_filePath()  # Get the path to the config file
         logger.info(f"Reading configuration file from: {config_path}")  # Debugging log
         if not os.path.exists(config_path):
             logger.error(f"Configuration file '{config_path}' not found.")

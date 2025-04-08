@@ -51,7 +51,7 @@ class create_incident:
     def initialize_mongo_doc(self):
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         return {
-            "Doc_Version": 1,
+            "Doc_Version": 1.0,
             "Incident_Id": self.incident_id,
             "Account_Num": self.account_num,
             "Arrears": 1000, #hard code for now 

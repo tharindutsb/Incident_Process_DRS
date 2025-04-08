@@ -2,7 +2,8 @@ import configparser
 from urllib.parse import urlparse
 from pathlib import Path
 from functools import lru_cache
-from utils.filePath.filePath import get_filePath
+
+from utils.get_root_paths.get_root_paths import get_config_filePath #get_project_root drs_config.ini
 
 @lru_cache(maxsize=1)  # Simple caching
 def read_api_config() -> str:
@@ -16,7 +17,7 @@ def read_api_config() -> str:
         FileNotFoundError: If config file is missing
         ValueError: If config is invalid or URL malformed
     """
-    config_path = get_filePath("apiConfig")
+    config_path = get_config_filePath()  # Get the path to the config file
     
     # Validate file existence
     if not config_path or not config_path.is_file():
