@@ -34,12 +34,12 @@ def get_db_connection():
             logger.error("'MONGODB' section not found in databaseConfig.ini")
             raise ValueError("'MONGODB' section not found in databaseConfig.ini")
 
-        mongo_uri = config['MONGODB'].get('MONGO_URL', '').strip()
+        mongo_uri = config['MONGODB'].get('MONGO_URI', '').strip()
         db_name = config['MONGODB'].get('DATABASE_NAME', '').strip()
 
         if not mongo_uri or not db_name:
-            logger.error("Missing MONGO_URL or DATABASE_NAME in databaseConfig.ini")
-            raise ValueError("Missing MONGO_URL or DATABASE_NAME in databaseConfig.ini")
+            logger.error("Missing MONGO_URI or DATABASE_NAME in databaseConfig.ini")
+            raise ValueError("Missing MONGO_URI or DATABASE_NAME in databaseConfig.ini")
 
         client = MongoClient(mongo_uri)
         db = client[db_name]

@@ -22,6 +22,7 @@ def get_logger_filePath():
     Returns the full path to the logging configuration file located in the Config directory.
     """
     project_root = get_project_root()
+    print (f"Project root: {project_root}")
     logger_file_path = project_root / "Config" / "logConfig.ini"
     if not logger_file_path.exists():
         raise FileNotFoundError(f"Logger config file not found at: {logger_file_path}")
