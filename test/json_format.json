@@ -1,35 +1,35 @@
 {
-    "Doc_Version": 1,
-    "Incident_Id": 123456257,
+    "Doc_Version": 1.0,
+    "Incident_Id": 9227534534,
     "Account_Num": "0000003746",
-    "Arrears": 0,
+    "Arrears": 1000,
     "arrears_band": "",
     "Created_By": "drs_admin",
-    "Created_Dtm": "2025-04-06T11:22:20.000Z",
+    "Created_Dtm": "2025-04-11T10:20:44.000Z",
     "Incident_Status": "",
-    "Incident_Status_Dtm": "2025-04-06T11:22:20.000Z",
+    "Incident_Status_Dtm": "2025-04-11T10:20:44.000Z",
     "Status_Description": "",
     "File_Name_Dump": "",
     "Batch_Id": "",
-    "Batch_Id_Tag_Dtm": "2025-04-06T11:22:20.000Z",
-    "External_Data_Update_On": "2025-04-06T11:22:20.000Z",
+    "Batch_Id_Tag_Dtm": "2025-04-11T10:20:44.000Z",
+    "External_Data_Update_On": "2025-04-11T10:20:44.000Z",
     "Filtered_Reason": "",
-    "Export_On": "2025-04-06T11:22:20.000Z",
+    "Export_On": "2025-04-11T10:20:44.000Z",
     "File_Name_Rejected": "",
     "Rejected_Reason": "",
     "Incident_Forwarded_By": "",
-    "Incident_Forwarded_On": "2025-04-06T11:22:20.000Z",
+    "Incident_Forwarded_On": "2025-04-11T10:20:44.000Z",
     "Contact_Details": [
         {
             "Contact_Type": "email",
             "Contact": "",
-            "Create_Dtm": "2025-04-06T11:22:20.000Z",
+            "Create_Dtm": "2025-02-22T00:00:00.000Z",
             "Create_By": "drs_admin"
         },
         {
             "Contact_Type": "mobile",
             "Contact": "0773320486",
-            "Create_Dtm": "2025-04-06T11:22:20.000Z",
+            "Create_Dtm": "2025-02-22T00:00:00.000Z",
             "Create_By": "drs_admin"
         }
     ],
@@ -42,7 +42,7 @@
             "Product_Id": "1-2OPD-327",
             "Product_Name": "E_SLT Peo TV Service",
             "Product_Status": "Inactive",
-            "Effective_Dtm": "2025-04-06T11:22:20.000Z",
+            "Effective_Dtm": "1987-06-23T00:00:00.000Z",
             "Service_Address": "202/18, Manamendra Mw, , Ukwattha, Avissawella, Colombo, Western, Sri Lanka, 10700",
             "Cat": "Individual",
             "Db_Cpe_Status": "",
@@ -59,7 +59,7 @@
             "Product_Id": "1-2X4Z-505",
             "Product_Name": "AB Fiber Access Bearer",
             "Product_Status": "Inactive",
-            "Effective_Dtm": "2025-04-06T11:22:20.000Z",
+            "Effective_Dtm": "1987-06-23T00:00:00.000Z",
             "Service_Address": "202/18, Manamendra Mw, , Ukwattha, Avissawella, Colombo, Western, Sri Lanka, 10700",
             "Cat": "Individual",
             "Db_Cpe_Status": "",
@@ -78,11 +78,12 @@
         "Customer_Type_Name": "",
         "Nic": "None",
         "Customer_Type_Id": 1,
-        "Customer_Type": "Individual-Residential"
+        "Customer_Type": "Individual-Residential",
+        "Email_Address": ""
     },
     "Account_Details": {
         "Account_Status": "OK",
-        "Acc_Effective_Dtm": "2025-04-06T11:22:20.000Z",
+        "Acc_Effective_Dtm": "1987-06-23T00:00:00.000Z",
         "Acc_Activate_Date": "1900-01-01T00:00:00.000Z",
         "Credit_Class_Id": 1,
         "Credit_Class_Name": "Residential - Low",
@@ -95,12 +96,12 @@
     },
     "Last_Actions": [
         {
-            "Billed_Seq": 255,
-            "Billed_Created": "2025-04-06T11:22:20.000Z",
-            "Payment_Seq": 0,
-            "Payment_Created": "2025-04-06T11:22:20.000Z",
-            "Payment_Money": 5000000.0,
-            "Billed_Amount": 5000000.0
+            "Billed_Seq": 114,
+            "Billed_Created": "2024-08-01T00:00:00.000Z",
+            "Payment_Seq": 114,
+            "Payment_Created": "2016-11-02T00:00:00.000Z",
+            "Payment_Money": 22567.0,
+            "Billed_Amount": 22567.0
         }
     ],
     "Marketing_Details": [
@@ -112,11 +113,11 @@
         }
     ],
     "Action": "",
-    "Validity_period": "0",
+    "Validity_period": 0,
     "Remark": "",
-    "updatedAt": "2025-04-06T11:22:20.000Z",
+    "updatedAt": "2025-04-11T10:20:44.000Z",
     "Rejected_By": "",
-    "Rejected_Dtm": "2025-04-06T11:22:20.000Z",
+    "Rejected_Dtm": "2025-04-11T10:20:44.000Z",
     "Arrears_Band": "",
     "Source_Type": ""
 }
