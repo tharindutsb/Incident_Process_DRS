@@ -1,3 +1,21 @@
+#region -- Incident Creation Module
+'''
+
+ incident_create.py file is as follows:
+
+    Purpose: This script handles database connections and collection initialization.
+    Created Date: 2025-01-08
+    Created By:  T.S.Balasooriya (tharindutsb@gmail.com) , Pasan(pasanbathiya246@gmail.com),Amupama(anupamamaheepala999@gmail.com)
+    Last Modified Date: 2024-01-19
+    Modified By: T.S.Balasooriya (tharindutsb@gmail.com), Pasan(pasanbathiya246@gmail.com),Amupama(anupamamaheepala999@gmail.com)     
+    Version: Python 3.9
+    Dependencies: configparser, pymongo, os, utils.loggers, utils.Custom_Exceptions
+    Notes:
+'''
+#endregion
+
+
+
 import pymysql  # Library for interacting with MySQL databases
 from datetime import datetime, date, timedelta,timezone,time # Modules for working with date and time
 from decimal import Decimal  # Module for handling precise decimal arithmetic
@@ -21,7 +39,7 @@ from utils.custom_exceptions.customize_exceptions import APIConfigError, Inciden
 logger = get_logger("incident_logger")
 
 class create_incident:
-    
+
     def __init__(self, account_num, incident_id):
         """
         Constructor for the create_incident class.
