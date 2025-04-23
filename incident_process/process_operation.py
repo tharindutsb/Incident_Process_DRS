@@ -7,6 +7,7 @@ from incident_process.incident_create import create_incident
 logger = get_logger("process_operation_logger")
 
 class ProcessOperation:
+    
     def __init__(self, account_num, incident_id):
         self.system_date = datetime.now() - timedelta(minutes=1)
         self.mysql_conn = get_mysql_connection()
@@ -57,6 +58,7 @@ class ProcessOperation:
         """
         try:
             last_execution_dtm = operation["Last_execution_dtm"]
+            execution_duration = operation["execution_duration"]  # Fetch execution duration
             time_period_start = last_execution_dtm
             time_period_end = self.system_date
 
@@ -86,7 +88,7 @@ class ProcessOperation:
                     Next_execution_dtm = %s, 
                     Process_Operation_Sequence = Process_Operation_Sequence + 1
                 WHERE Operation_name = 'Incident extraction from data lake'
-            """, (self.system_date, self.system_date + timedelta(minutes=60)))
+            """, (self.system_date, self.system_date + timedelta(minutes=execution_duration)))
             self.mysql_conn.commit()
             logger.info("Process_Operation table updated successfully.")
         except Exception as e:
