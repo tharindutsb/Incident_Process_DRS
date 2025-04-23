@@ -1,24 +1,33 @@
 {
     "Doc_Version": 1.0,
-    "Incident_Id": 9227534534,
+    "Incident_Id": 2273434,
     "Account_Num": "0000003746",
     "Arrears": 1000,
     "arrears_band": "",
     "Created_By": "drs_admin",
-    "Created_Dtm": "2025-04-11T10:20:44.000Z",
+    "Created_Dtm": "2025-04-23T16:29:51.000Z",
     "Incident_Status": "",
-    "Incident_Status_Dtm": "2025-04-11T10:20:44.000Z",
+    "Incident_Status_Dtm": "2025-04-23T16:29:51.000Z",
     "Status_Description": "",
     "File_Name_Dump": "",
     "Batch_Id": "",
-    "Batch_Id_Tag_Dtm": "2025-04-11T10:20:44.000Z",
-    "External_Data_Update_On": "2025-04-11T10:20:44.000Z",
+    "Batch_Id_Tag_Dtm": "2025-04-23T16:29:51.000Z",
+    "External_Data_Update_On": "2025-04-23T16:29:51.000Z",
     "Filtered_Reason": "",
-    "Export_On": "2025-04-11T10:20:44.000Z",
+    "Export_On": "2025-04-23T16:29:51.000Z",
     "File_Name_Rejected": "",
     "Rejected_Reason": "",
     "Incident_Forwarded_By": "",
-    "Incident_Forwarded_On": "2025-04-11T10:20:44.000Z",
+    "Incident_Forwarded_On": "2025-04-23T16:29:51.000Z",
+    "Accounts_Details": [
+        {
+            "Id": 0,
+            "DRCMood": "",
+            "Account_Num": "0000003746",
+            "Account_Status": "",
+            "OutstandingBalance": 0
+        }
+    ],
     "Contact_Details": [
         {
             "Contact_Type": "email",
@@ -79,6 +88,7 @@
         "Nic": "None",
         "Customer_Type_Id": 1,
         "Customer_Type": "Individual-Residential",
+        "customer_ref": "CR000000374",
         "Email_Address": ""
     },
     "Account_Details": {
@@ -115,9 +125,9 @@
     "Action": "",
     "Validity_period": 0,
     "Remark": "",
-    "updatedAt": "2025-04-11T10:20:44.000Z",
+    "updatedAt": "2025-04-23T16:29:51.000Z",
     "Rejected_By": "",
-    "Rejected_Dtm": "2025-04-11T10:20:44.000Z",
+    "Rejected_Dtm": "2025-04-23T16:29:51.000Z",
     "Arrears_Band": "",
     "Source_Type": ""
 }

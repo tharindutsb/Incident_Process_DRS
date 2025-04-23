@@ -1,0 +1,61 @@
+- Get current system time: SYSTEM_DATE = NOW - 1min
+
+1. INITIAL SETUP ():
+	check 
+	in that Process_Operation table active that Operation name : "Incident extraction from data lake"
+	[this condition must me true to continue]
+	not active  LOG RESPONSE error
+
+
+2  Condition must be true for the PROCESS EXECUTION :
+   	
+   	- Check if process should run:
+   	  IF (end_dtm > SYSTEM_DATE OR end_dtm IS NULL) 
+  	   AND (Next_execution_dtm < SYSTEM_DATE) THEN
+      		  RUN PROCESS (3.)
+    	 ELSE: 
+		if  end_dtm > SYSTEM_DATE -> process is terminated because of end date tell in logger err
+		if  Next_execution_dtm < SYSTEM_DATE -> tell  process coming on 'next_exucution_dtm'
+ 		 
+3. PROCESS :
+
+
+   - For each account in data lake get by considering that TIME_PERIOD :
+     a.       
+      
+	
+TIME_PERIOD = Last_execution_dtm to SYSTEM_DATE 
+In this TIME_PERIOD Fetch that debt_cust_detail and debt_payment with considering 'LOAD_DATE' in sql  of those tables 
+	
+	example if time period 2024-01-08 06:31:41 to 2024-01-08 07:31:41 LOAD_DATE has those time period get it given account_num 
+
+ 
+  run the process on incident_create.py has process incident  if it want to change, change it 
+
+
+  - ON SUCCESS:
+     f. UPDATE SQL Process_Operation table  :
+      
+     * Update Process_Operation:
+       - Last_execution_dtm = SYSTEM_DATE
+       - Next_execution_dtm = SYSTEM_DATE + 60 mins
+       - Increment Process_Operation_Sequence
+
+   - ON FAILURE:
+     * Log error details
+
+
+CREATE TABLE Process_Operation (
+Process_Operation_Sequence INT NOT NULL,
+created_dtm DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+Operation_name VARCHAR(255) NOT NULL,
+execution_duration INT NOT NULL,
+Next_execution_dtm DATETIME NOT NULL,
+Last_execution_dtm DATETIME NOT NULL,
+end_dtm DATETIME
+);
+
+
+those are work with sql table create a new python file class for this 
+
+     

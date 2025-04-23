@@ -89,6 +89,16 @@ class create_incident:
             "Rejected_Reason": "",
             "Incident_Forwarded_By": "",
             "Incident_Forwarded_On": now,
+            "Accounts_Details":[
+                {
+                "Id":0,
+                "DRCMood":"",
+                "Account_Num":self.account_num,
+                "Account_Status":"",
+                "OutstandingBalance":0,
+                }
+            ]
+            ,
             "Contact_Details": [],
             "Product_Details": [],
             "Customer_Details": {},
@@ -223,7 +233,9 @@ class create_incident:
                         "Customer_Type_Name": "",
                         "Nic": str(row.get("NIC", "")), 
                         "Customer_Type_Id": int(row.get("CUSTOMER_TYPE_ID", "")),
-                        "Customer_Type": row.get("CUSTOMER_TYPE", "")
+                        "Customer_Type": row.get("CUSTOMER_TYPE", ""),
+                        "customer_ref": row.get("CUSTOMER_REF", ""),
+                        
                     }
 
                     # Account details
@@ -447,243 +459,62 @@ class create_incident:
             logger.error(f"API Request Failed: {e}")
             return False
     
-    def get_last_processing_time(self):
-        """
-        Retrieves the last processing timestamp from MongoDB with comprehensive date handling
-        Handles:
-        - MongoDB extended JSON format ({$date: ISO string})
-        - Regular datetime objects
-        - Various ISO string formats
-        """
-        # Initialize defaults
-        self.last_execution_time = "1900-01-01T00:00:00Z"
-        self.current_sequence = 0
-        self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
-
-        try:
-            collection = get_mongo_collection("Process_Operation")
-            last_record = collection.find_one(
-                {"Operation_name": "Incident extraction from data lake"},
-                sort=[("Process_Operation_Sequence", -1)]
-            )
-
-            if not last_record:
-                logger.info("No previous processing record found, using defaults")
-                return self.last_execution_dt
-
-            # Handle sequence number
-            try:
-                self.current_sequence = int(last_record.get("Process_Operation_Sequence", 0))
-            except (ValueError, TypeError):
-                logger.warning("Invalid sequence number, defaulting to 0")
-                self.current_sequence = 0
-
-            # Handle timestamp with multiple format support
-            timestamp = last_record.get("Last_execution_dtm")
-            if timestamp:
-                try:
-                    # Case 1: MongoDB extended JSON format
-                    if isinstance(timestamp, dict) and "$date" in timestamp:
-                        date_str = timestamp["$date"]
-                        # Remove timezone offset if present
-                        if '+' in date_str:
-                            date_str = date_str.split('+')[0] + 'Z'
-                        # Parse with or without milliseconds
-                        if '.' in date_str:
-                            parsed_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-                        else:
-                            parsed_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
-                    
-                    # Case 2: Already a datetime object
-                    elif isinstance(timestamp, datetime):
-                        parsed_dt = timestamp
-                    
-                    # Case 3: String timestamp (fallback)
-                    elif isinstance(timestamp, str):
-                        # Normalize the string format
-                        clean_str = timestamp.replace("Z", "") if "Z" in timestamp else timestamp
-                        clean_str = clean_str.split('+')[0]  # Remove timezone offset if present
-                        parsed_dt = datetime.fromisoformat(clean_str)
-                    
-                    else:
-                        raise ValueError(f"Unsupported timestamp format: {type(timestamp)}")
-
-                    # Ensure timezone awareness
-                    if parsed_dt.tzinfo is None:
-                        parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
-                    
-                    self.last_execution_dt = parsed_dt
-                    self.last_execution_time = parsed_dt.isoformat()
-                    logger.info(f"Loaded processing time: {self.last_execution_time}")
-
-                except Exception as e:
-                    logger.error(f"Failed to parse timestamp {timestamp}: {e}")
-                    # Fall back to defaults on error
-                    self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
-                    self.last_execution_time = "1900-01-01T00:00:00Z"
-
-            return self.last_execution_dt
-
-        except Exception as e:
-            logger.error(f"Error retrieving processing time: {e}", exc_info=True)
-            # Return defaults on any error
-            self.last_execution_dt = datetime(1900, 1, 1, tzinfo=timezone.utc)
-            self.last_execution_time = "1900-01-01T00:00:00Z"
-            return self.last_execution_dt
-
-    def update_processing_timestamp(self, new_timestamp=None):
-        """
-        Updates the processing timestamp in MongoDB with proper date formatting
-        Args:
-            new_timestamp: Optional datetime/date to use (defaults to now - 1 minute)
-        """
-        try:
-            # Default to current time minus 1 minute if not provided
-            if new_timestamp is None:
-                new_timestamp = datetime.now(timezone.utc) - timedelta(minutes=1)
-            elif isinstance(new_timestamp, date) and not isinstance(new_timestamp, datetime):
-                new_timestamp = datetime.combine(new_timestamp, time.min, tzinfo=timezone.utc)
-            elif isinstance(new_timestamp, str):
-                # Handle string input
-                if 'Z' in new_timestamp:
-                    new_timestamp = new_timestamp.replace("Z", "+00:00")
-                new_timestamp = datetime.fromisoformat(new_timestamp)
-            
-            # Ensure timezone awareness
-            if new_timestamp.tzinfo is None:
-                new_timestamp = new_timestamp.replace(tzinfo=timezone.utc)
-
-            # Format for MongoDB
-            mongo_date = {"$date": new_timestamp.isoformat(timespec='milliseconds')}
-            
-            collection = get_mongo_collection("Process_Operation")
-            self.current_sequence += 1
-
-            update_data = {
-                "$set": {
-                    "Last_execution_dtm": mongo_date,
-                    "end_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')},
-                    "created_dtm": {"$date": datetime.now(timezone.utc).isoformat(timespec='milliseconds')}
-                },
-                "$setOnInsert": {
-                    "Operation_name": "Incident extraction from data lake"
-                },
-                "$inc": {"Process_Operation_Sequence": 1}
-            }
-
-            result = collection.update_one(
-                {"Operation_name": "Incident extraction from data lake"},
-                update_data,
-                upsert=True
-            )
-
-            logger.info(f"Updated processing timestamp to {new_timestamp.isoformat()}")
-            return result.modified_count > 0
-
-        except Exception as e:
-            logger.error(f"Failed to update timestamp: {e}", exc_info=True)
-            raise
-
     def process_incident(self):
-        """
-        Complete incident processing with proper time window handling
-        """
-        try:
-            # 1. Get processing window
-            window_start = self.get_last_processing_time()
-            window_end = datetime.now(timezone.utc) - timedelta(minutes=1)
-            
-            logger.info(f"Processing window: {window_start.isoformat()} to {window_end.isoformat()}")
-            logger.info(f"Account: {self.account_num}")
-
-            # 2. Connect to MySQL
-            mysql_conn = get_mysql_connection()
-            if not mysql_conn:
-                logger.error("MySQL connection failed")
-                return False
-
-            cursor = mysql_conn.cursor(pymysql.cursors.DictCursor)
-            
-            try:
-                # 3. Get customer data within time window (using LOAD_DATE)
-                cursor.execute(
-                    "SELECT * FROM debt_cust_detail WHERE ACCOUNT_NUM = %s "
-                    "AND LOAD_DATE > %s AND LOAD_DATE <= %s",
-                    (self.account_num, window_start.date(), window_end.date())
-                )
-                customer_data = cursor.fetchall()
-                logger.info(f"Found {len(customer_data)} customer records")
-
-                # 4. Get payment data within time window
-                cursor.execute(
-                    "SELECT * FROM debt_payment WHERE AP_ACCOUNT_NUMBER = %s "
-                    "AND (ACCOUNT_PAYMENT_DAT BETWEEN %s AND %s OR LOAD_DATE BETWEEN %s AND %s) "
-                    "ORDER BY ACCOUNT_PAYMENT_DAT DESC LIMIT 1",
-                    (self.account_num, window_start, window_end, window_start, window_end)
-                )
-                payment_data = cursor.fetchall()
-                logger.info(f"Found {len(payment_data)} payment records")
-
-                if not customer_data and not payment_data:
-                    logger.info("No new data in time window")
-                    # Do not update the timestamp if no new data is found
-                    return True
-
-                # 5. Process data
-                self.mongo_data = self.initialize_mongo_doc()
-                if customer_data:
-                    self.read_customer_details()
-                if payment_data:
-                    self.get_payment_data()
-
-                # 6. Prepare and send payload
-                json_payload = self.format_json_object()
-                print("Incident Json Payload:")
-                print("====================================")
-                print(json_payload)
-                logger.debug(f"Payload: {json.dumps(json.loads(json_payload), indent=2)}")
+                """
+                Processes a debt collection incident by gathering customer/payment data and sending to API.
                 
-                api_url = read_api_config()
-                if not api_url:
-                    raise APIConfigError("API URL not configured")
+                This method:
+                1. Retrieves customer details from MySQL (already done in initialization)
+                2. Retrieves optional payment data if customer exists
+                3. Formats the data as JSON
+                4. Sends to the configured API endpoint
+                
+                Returns:
+                    bool: 
+                        - True if incident was successfully created and sent to API
+                        - False if:
+                            * No customer details found
+                            * Database query failed
+                            * API communication failed
+                """
+                try:
+                    logger.info(f"Processing incident for account: {self.account_num}, ID: {self.incident_id}")
                     
-                if not self.send_to_api(json_payload, api_url):
-                    raise Exception("API send failed")
+                    # 1. Retrieve Customer Details (critical failure if missing)
+                    customer_status = self.read_customer_details()
+                    if customer_status != "success" or not self.mongo_data["Customer_Details"]:
+                        logger.error(f"No customer details found for account {self.account_num}")
+                        return False
+                    
+                    # 2. Optional: Retrieve Payment Data
+                    payment_status = self.get_payment_data()  # Failure tolerated
+                    if payment_status != "success":
+                        logger.warning(f"Failed to retrieve payment data for account {self.account_num}")
+                        return False
+                        
+                    # 3. Format and Send to API
+                    json_output = self.format_json_object()
+                    print(json_output)  # For debugging purposes
+                    
+                    api_url = read_api_config()
+                    if not api_url:
+                        raise APIConfigError("Empty API URL in config")
+                            
+                    api_response = self.send_to_api(json_output, api_url)
+                    if not api_response:
+                        raise IncidentCreationError("Empty API response")
+                            
+                    logger.info(f"API Success: {api_response}")
+                    return True
+                    
+                except IncidentCreationError as e:
+                    logger.error(f"Incident processing failed: {e}")
+                    return False
+                except APIConfigError as e:
+                    logger.error(f"Configuration error: {e}")
+                    return False
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}", exc_info=True)
+                    return False
+               
 
-                # 7. Update processing timestamp using the newest LOAD_DATE
-                newest_timestamp = None
-                
-                # Convert all dates to datetime for comparison
-                if customer_data:
-                    customer_dates = []
-                    for row in customer_data:
-                        if row.get("LOAD_DATE"):
-                            if isinstance(row["LOAD_DATE"], date):
-                                customer_dates.append(datetime.combine(row["LOAD_DATE"], datetime.min.time()))
-                            else:
-                                customer_dates.append(row["LOAD_DATE"])
-                    if customer_dates:
-                        newest_timestamp = max(customer_dates)
-                
-                if payment_data:
-                    payment_date = payment_data[0].get("LOAD_DATE")
-                    if payment_date:
-                        if isinstance(payment_date, date):
-                            payment_date = datetime.combine(payment_date, datetime.min.time())
-                        newest_timestamp = max(newest_timestamp, payment_date) if newest_timestamp else payment_date
-                
-                # Only update the timestamp if a valid newest_timestamp is found
-                if newest_timestamp:
-                    self.update_processing_timestamp(newest_timestamp)
-                else:
-                    logger.info("No valid LOAD_DATE found to update the processing timestamp.")
-
-                return True
-
-            finally:
-                cursor.close()
-                mysql_conn.close()
-                
-        except Exception as e:
-            logger.error(f"Processing failed: {e}", exc_info=True)
-            return False
