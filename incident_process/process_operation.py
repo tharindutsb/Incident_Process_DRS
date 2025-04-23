@@ -4,7 +4,7 @@ from utils.database.connectSQL import get_mysql_connection
 from utils.logger.logger import get_logger
 from incident_process.incident_create import create_incident
 
-logger = get_logger("process_operation_logger")
+logger = get_logger("incident_logger")
 
 class ProcessOperation:
     
@@ -47,7 +47,7 @@ class ProcessOperation:
             return False
 
         if next_execution_dtm > self.system_date:
-            logger.info(f"Process is scheduled to run in {next_execution_dtm} minutes.")
+            logger.info(f"Process is scheduled to run in {next_execution_dtm}.")
             return False
 
         return True
@@ -71,6 +71,8 @@ class ProcessOperation:
             """, (self.account_num, time_period_start, time_period_end))
             accounts = cursor.fetchall()
 
+            all_success = True  # Track if all incidents are processed successfully
+
             for account in accounts:
                 account_num = account["ACCOUNT_NUM"]
                 incident = create_incident(account_num, self.incident_id)
@@ -80,18 +82,24 @@ class ProcessOperation:
                     logger.info(f"Incident processed successfully for account: {account_num}")
                 else:
                     logger.error(f"Failed to process incident for account: {account_num}")
+                    all_success = False
 
-            # Update Process_Operation table on success
-            cursor.execute("""
-                UPDATE Process_Operation 
-                SET Last_execution_dtm = %s, 
-                    Next_execution_dtm = %s, 
-                    Process_Operation_Sequence = Process_Operation_Sequence + 1
-                WHERE Operation_name = 'Incident extraction from data lake'
-            """, (self.system_date, self.system_date + timedelta(minutes=execution_duration)))
-            self.mysql_conn.commit()
-            logger.info("Process_Operation table updated successfully.")
+            # Only update Process_Operation if all incidents are processed successfully
+            if all_success:
+                cursor.execute("""
+                    UPDATE Process_Operation 
+                    SET Last_execution_dtm = %s, 
+                        Next_execution_dtm = %s, 
+                        Process_Operation_Sequence = Process_Operation_Sequence + 1
+                    WHERE Operation_name = 'Incident extraction from data lake'
+                """, (self.system_date, self.system_date + timedelta(minutes=execution_duration)))
+                self.mysql_conn.commit()
+                logger.info("Process_Operation table updated successfully.")
+            else:
+                self.mysql_conn.rollback()
+                logger.error("Process failed. Rolled back changes to Process_Operation table.")
         except Exception as e:
+            self.mysql_conn.rollback()
             logger.error(f"Error executing process: {e}")
         finally:
             cursor.close()
