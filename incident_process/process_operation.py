@@ -47,7 +47,7 @@ class ProcessOperation:
             return False
 
         if next_execution_dtm > self.system_date:
-            logger.info(f"Process is scheduled to run in {next_execution_dtm}.")
+            logger.info(f"Process Operation is scheduled to run in {next_execution_dtm}.")
             return False
 
         return True
@@ -56,36 +56,22 @@ class ProcessOperation:
         """
         Execute the process for the given account number and incident ID.
         """
+        cursor = None  # Initialize cursor to None
         try:
             last_execution_dtm = operation["Last_execution_dtm"]
             execution_duration = operation["execution_duration"]  # Fetch execution duration
             time_period_start = last_execution_dtm
             time_period_end = self.system_date
 
-            # Fetch accounts from debt_cust_detail within the time period
-            cursor = self.mysql_conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("""
-                SELECT DISTINCT ACCOUNT_NUM 
-                FROM debt_cust_detail 
-                WHERE ACCOUNT_NUM = %s AND LOAD_DATE BETWEEN %s AND %s
-            """, (self.account_num, time_period_start, time_period_end))
-            accounts = cursor.fetchall()
-
-            all_success = True  # Track if all incidents are processed successfully
-
-            for account in accounts:
-                account_num = account["ACCOUNT_NUM"]
-                incident = create_incident(account_num, self.incident_id)
-                success = incident.process_incident()
-
-                if success:
-                    logger.info(f"Incident processed successfully for account: {account_num}")
-                else:
-                    logger.error(f"Failed to process incident for account: {account_num}")
-                    all_success = False
+            incident = create_incident(self.account_num, self.incident_id)
+            # Pass time_period_start and time_period_end to process_incident
+            success = incident.process_incident(time_period_start, time_period_end)
 
             # Only update Process_Operation if all incidents are processed successfully
-            if all_success:
+            if success:
+                logger.info(f"Incident processed successfully for account: {self.account_num}")
+                # Update Process_Operation table
+                cursor = self.mysql_conn.cursor()
                 cursor.execute("""
                     UPDATE Process_Operation 
                     SET Last_execution_dtm = %s, 
@@ -96,13 +82,13 @@ class ProcessOperation:
                 self.mysql_conn.commit()
                 logger.info("Process_Operation table updated successfully.")
             else:
-                self.mysql_conn.rollback()
-                logger.error("Process failed. Rolled back changes to Process_Operation table.")
+                logger.error("Process failed. No updates made to Process_Operation table.")
         except Exception as e:
             self.mysql_conn.rollback()
             logger.error(f"Error executing process: {e}")
         finally:
-            cursor.close()
+            if cursor:  # Check if cursor is not None before closing
+                cursor.close()
 
     def run(self):
         """
@@ -114,7 +100,6 @@ class ProcessOperation:
 
         if self.should_run_process(operation):
             self.execute_process(operation)
-
     def close_connection(self):
         """
         Close the MySQL connection.

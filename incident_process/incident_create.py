@@ -21,7 +21,7 @@ from datetime import datetime, date, timedelta,timezone,time # Modules for worki
 from decimal import Decimal  # Module for handling precise decimal arithmetic
 import json  # Module for parsing and handling JSON data
 import requests  # Library for making HTTP requests
-from pymongo import MongoClient  # Import MongoDB client
+
 
 # Import a function to establish a MySQL database connection
 from utils.database.connectSQL import get_mysql_connection
@@ -34,6 +34,8 @@ from utils.logger.logger import get_logger
 from utils.api.connectAPI import read_api_config
 # Import custom exceptions for error handling
 from utils.custom_exceptions.customize_exceptions import APIConfigError, IncidentCreationError, DatabaseConnectionError, DataProcessingError
+
+
 
 
 logger = get_logger("incident_logger")
@@ -131,7 +133,7 @@ class create_incident:
             "Source_Type": ""
         }
 
-    def read_customer_details(self):
+    def read_customer_details(self,time_period_start, time_period_end):
         """
         Retrieves and processes customer account data from MySQL, transforming it into MongoDB document structure.
 
@@ -180,13 +182,19 @@ class create_incident:
         mysql_conn = None
         cursor = None
         try:
-            logger.info(f"Reading customer details for account number: {self.account_num}")
+            logger.info(f"Reading customer details for account number: {self.account_num} within {time_period_start} to {time_period_end}")
             mysql_conn = get_mysql_connection()
             if not mysql_conn:
                 raise DatabaseConnectionError("Failed to connect to MySQL for reading customer details.")
             
             cursor = mysql_conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute(f"SELECT * FROM debt_cust_detail WHERE ACCOUNT_NUM = '{self.account_num}'")
+            cursor.execute(
+                f"""
+                SELECT * FROM debt_cust_detail 
+                WHERE ACCOUNT_NUM = '{self.account_num}' 
+                AND LOAD_DATE BETWEEN '{time_period_start}' AND '{time_period_end}'
+                """
+            )
             rows = cursor.fetchall()
 
             # Track seen product IDs to avoid duplicates
@@ -300,22 +308,26 @@ class create_incident:
             if mysql_conn:
                 mysql_conn.close()
 
-    def get_payment_data(self):
+    def get_payment_data(self, time_period_start, time_period_end):
         """
-        Retrieves and processes payment data with all required fields
+        Retrieves and processes payment data within a specific time period.
         """
         mysql_conn = None
         cursor = None
         try:
-            logger.info(f"Getting payment data for account: {self.account_num}")
+            logger.info(f"Getting payment data for account: {self.account_num} within {time_period_start} to {time_period_end}")
             mysql_conn = get_mysql_connection()
             if not mysql_conn:
                 raise DatabaseConnectionError("MySQL connection failed")
             
             cursor = mysql_conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute(
-                f"SELECT * FROM debt_payment WHERE AP_ACCOUNT_NUMBER = '{self.account_num}' "
-                "ORDER BY ACCOUNT_PAYMENT_DAT DESC LIMIT 1"
+                f"""
+                SELECT * FROM debt_payment 
+                WHERE AP_ACCOUNT_NUMBER = '{self.account_num}' 
+                AND LOAD_DATE BETWEEN '{time_period_start}' AND '{time_period_end}'
+                ORDER BY ACCOUNT_PAYMENT_DAT DESC LIMIT 1
+                """
             )
             payment_rows = cursor.fetchall()
 
@@ -324,8 +336,12 @@ class create_incident:
                 
                 # Get corresponding bill data for the required Billed_Created field
                 cursor.execute(
-                    f"SELECT LAST_BILL_DTM FROM debt_cust_detail WHERE ACCOUNT_NUM = '{self.account_num}' "
-                    "ORDER BY LOAD_DATE DESC LIMIT 1"
+                    f"""
+                    SELECT LAST_BILL_DTM FROM debt_cust_detail 
+                    WHERE ACCOUNT_NUM = '{self.account_num}' 
+                    AND LOAD_DATE BETWEEN '{time_period_start}' AND '{time_period_end}'
+                    ORDER BY LOAD_DATE DESC LIMIT 1
+                    """
                 )
                 bill_data = cursor.fetchone()
                 
@@ -340,7 +356,7 @@ class create_incident:
                 self.mongo_data["Last_Actions"] = [
                     {
                         "Billed_Seq": int(payment.get("ACCOUNT_PAYMENT_SEQ", "")),
-                        "Billed_Created": billed_date,  # Fixed this field
+                        "Billed_Created": billed_date,
                         "Payment_Seq": int(payment.get("ACCOUNT_PAYMENT_SEQ", "")),
                         "Payment_Created": payment_date,
                         "Payment_Money": float(payment["AP_ACCOUNT_PAYMENT_MNY"]) if payment.get("AP_ACCOUNT_PAYMENT_MNY") else 0,
@@ -359,7 +375,6 @@ class create_incident:
                 cursor.close()
             if mysql_conn:
                 mysql_conn.close()
-
 
     def format_json_object(self):
         """
@@ -459,7 +474,7 @@ class create_incident:
             logger.error(f"API Request Failed: {e}")
             return False
     
-    def process_incident(self):
+    def process_incident(self,time_period_start, time_period_end):
                 """
                 Processes a debt collection incident by gathering customer/payment data and sending to API.
                 
@@ -481,13 +496,13 @@ class create_incident:
                     logger.info(f"Processing incident for account: {self.account_num}, ID: {self.incident_id}")
                     
                     # 1. Retrieve Customer Details (critical failure if missing)
-                    customer_status = self.read_customer_details()
+                    customer_status = self.read_customer_details(time_period_start, time_period_end)
                     if customer_status != "success" or not self.mongo_data["Customer_Details"]:
                         logger.error(f"No customer details found for account {self.account_num}")
                         return False
                     
                     # 2. Optional: Retrieve Payment Data
-                    payment_status = self.get_payment_data()  # Failure tolerated
+                    payment_status = self.get_payment_data(time_period_start, time_period_end)
                     if payment_status != "success":
                         logger.warning(f"Failed to retrieve payment data for account {self.account_num}")
                         return False
