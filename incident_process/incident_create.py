@@ -25,7 +25,6 @@ import requests  # Library for making HTTP requests
 
 # Import a function to establish a MySQL database connection
 from utils.database.connectSQL import get_mysql_connection
-from utils.database.connectMongo import get_mongo_collection
 
 # Import a function to configure and retrieve a logger for logging messages
 from utils.logger.logger import get_logger
@@ -74,8 +73,9 @@ class create_incident:
             "Doc_Version": 1.0,
             "Incident_Id": self.incident_id,
             "Account_Num": self.account_num,
+            "Customer_Ref":"",
             "Arrears": 1000, #hard code for now 
-            "arrears_band": "",
+            "Arrears_Band": "",
             "Created_By": "drs_admin",
             "Created_Dtm": now,
             "Incident_Status": "",
@@ -91,13 +91,13 @@ class create_incident:
             "Rejected_Reason": "",
             "Incident_Forwarded_By": "",
             "Incident_Forwarded_On": now,
-            "Accounts_Details":[
+            "Account_Cross_Details":[
                 {
-                "Id":0,
-                "DRCMood":"",
+                "Incident_Id":self.incident_id,
+                "Case_Id":0,
                 "Account_Num":self.account_num,
                 "Account_Status":"",
-                "OutstandingBalance":0,
+                "Outstanding_Balance":0,
                 }
             ]
             ,
@@ -117,8 +117,8 @@ class create_incident:
             ],
             "Marketing_Details": [
                 {
-                    "ACCOUNT_MANAGER": "",
-                    "CONSUMER_MARKET": "",
+                    "Account_Manager": "",
+                    "Consumer_Market": "",
                     "Informed_To": "",
                     "Informed_On": "1900-01-01T00:00:00.100Z"
                 }
@@ -129,10 +129,28 @@ class create_incident:
             "updatedAt": now,
             "Rejected_By": "",
             "Rejected_Dtm": now,
-            "Arrears_Band": "",
-            "Source_Type": ""
+            "Source_Type": "",
+            "Ref_Data_Temp_Permanent": [],
+            "Case_Status": [],
+            "Approvals": [],
+            "DRC": [],
+            "RO": [],
+            "RO_Requests": [],
+            "RO_Negotiation": [],
+            "RO_Customer_Details_Edit": [],
+            "RO_CPE_Collect": [],
+            "Mediation_Board": [],
+            "Settlement": [],
+            "Money_Transactions": [],
+            "Commission_Bill_Payment": [],
+            "Bonus": [],
+            "FTL_LOD": [],
+            "Litigation": [],
+            "LOD_Final_Reminder": [],
+            "Dispute": [],
+            "Abnormal_Stop": []
+            
         }
-
     def read_customer_details(self,time_period_start, time_period_end):
         """
         Retrieves and processes customer account data from MySQL, transforming it into MongoDB document structure.

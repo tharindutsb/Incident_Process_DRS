@@ -182,5 +182,4 @@ ERROR:incident_logger:Database connection error during incident processing: Fail
 ---
 
 ## Developed By
-[Tharindu Balasooriya] (tharindutsb@gmail.com) 
-
+[Tharindu Balasooriya] (tharindutsb@gmail.com)
